@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>वाणी — हिंदी आवाज़ सहायक</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hind:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#0B0C10;
+    --bg-surface:#15171F;
+    --bg-surface-2:#1C1F29;
+    --ink:#F5F3EE;
+    --ink-dim:#9A9BA5;
+    --ink-faint:#5B5D68;
+    --accent-marigold:#F2A93B;
+    --accent-violet:#9B7BFF;
+    --accent-teal:#4FD1C5;
+    --accent-rose:#F2735C;
+    --line:rgba(245,243,238,0.09);
+    --font-display:'Hind', sans-serif;
+    --font-body:'Hind', sans-serif;
+    --font-latin:'Space Grotesk', sans-serif;
+    --font-mono:'JetBrains Mono', monospace;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    background:var(--bg-void);
+    color:var(--ink);
+    font-family:var(--font-body);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+
+  body{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    position:relative;
+  }
+
+  /* ambient background texture */
+  .bg-grid{
+    position:fixed;
+    inset:0;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(155,123,255,0.10), transparent 60%),
+      radial-gradient(ellipse 50% 30% at 85% 90%, rgba(242,169,59,0.07), transparent 60%);
+    pointer-events:none;
+    z-index:0;
+  }
+
+  .container{
+    width:100%;
+    max-width:640px;
+    padding:28px 20px 60px;
+    position:relative;
+    z-index:1;
+  }
+
+  /* header */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding-bottom:22px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:8px;
+  }
+
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+
+  .brand-mark{
+    font-family:var(--font-latin);
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:0.14em;
+    color:var(--accent-marigold);
+    text-transform:uppercase;
+  }
+
+  .brand-name{
+    font-size:22px;
+    font-weight:600;
+    color:var(--ink);
+  }
+
+  .lang-chip{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-family:var(--font-latin);
+    font-size:11px;
+    letter-spacing:0.08em;
+    color:var(--ink-dim);
+    border:1px solid var(--line);
+    padding:6px 12px;
+    border-radius:999px;
+  }
+
+  .lang-chip .dot{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--accent-teal);
+  }
+
+  /* orb stage */
+  .stage{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:48px 0 32px;
+  }
+
+  .orb-wrap{
+    position:relative;
+    width:220px;
+    height:220px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .orb-ring{
+    position:absolute;
+    border-radius:50%;
+    border:1px solid var(--line);
+    transition:border-color 0.4s ease, opacity 0.4s ease, transform 0.6s ease;
+  }
+  .ring-1{width:220px;height:220px;}
+  .ring-2{width:180px;height:180px;}
+  .ring-3{width:140px;height:140px;}
+
+  .orb-core{
+    position:relative;
+    width:104px;
+    height:104px;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #2A2D3A, #15171F 70%);
+    border:1px solid var(--line);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:box-shadow 0.4s ease, transform 0.15s ease, border-color 0.4s ease;
+    box-shadow:0 0 0 rgba(155,123,255,0);
+    z-index:2;
+  }
+  .orb-core:active{ transform:scale(0.97); }
+
+  .orb-core svg{
+    width:34px; height:34px;
+    stroke:var(--ink-dim);
+    transition:stroke 0.3s ease;
+  }
+
+  /* waveform bars inside orb, shown while listening */
+  .wave-bars{
+    position:absolute;
+    display:flex;
+    align-items:center;
+    gap:3px;
+    height:30px;
+    opacity:0;
+    transition:opacity 0.25s ease;
+  }
+  .wave-bars.active{ opacity:1; }
+  .wave-bars span{
+    width:3px;
+    background:var(--accent-violet);
+    border-radius:2px;
+    height:6px;
+    transition:height 0.08s ease;
+  }
+
+  /* state: idle */
+  .stage.idle .orb-core{ border-color:var(--line); }
+
+  /* state: listening */
+  .stage.listening .orb-core{
+    border-color:var(--accent-violet);
+    box-shadow:0 0 40px rgba(155,123,255,0.25);
+  }
+  .stage.listening .ring-1{ border-color:rgba(155,123,255,0.35); transform:scale(1.04); }
+  .stage.listening .ring-2{ border-color:rgba(155,123,255,0.2); animation:pulse-ring 1.8s ease-out infinite; }
+  .stage.listening .ring-3{ border-color:rgba(155,123,255,0.5); animation:pulse-ring 1.8s ease-out infinite 0.3s; }
+  .stage.listening .orb-core svg{ stroke:var(--accent-violet); opacity:0; }
+
+  /* state: thinking */
+  .stage.thinking .orb-core{
+    border-color:var(--accent-marigold);
+    box-shadow:0 0 40px rgba(242,169,59,0.22);
+    animation:breathe 1.4s ease-in-out infinite;
+  }
+  .stage.thinking .orb-core svg{ stroke:var(--accent-marigold); }
+
+  /* state: speaking */
+  .stage.speaking .orb-core{
+    border-color:var(--accent-teal);
+    box-shadow:0 0 44px rgba(79,209,197,0.28);
+  }
+  .stage.speaking .ring-2{ border-color:rgba(79,209,197,0.3); animation:pulse-ring 1.2s ease-out infinite; }
+  .stage.speaking .orb-core svg{ stroke:var(--accent-teal); }
+
+  @keyframes pulse-ring{
+    0%{ transform:scale(0.9); opacity:0.9; }
+    100%{ transform:scale(1.35); opacity:0; }
+  }
+  @keyframes breathe{
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(1.045); }
+  }
+
+  .status-text{
+    margin-top:26px;
+    font-size:17px;
+    font-weight:500;
+    color:var(--ink);
+    min-height:24px;
+    text-align:center;
+  }
+  .status-sub{
+    margin-top:6px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:0.06em;
+    color:var(--ink-faint);
+    text-transform:uppercase;
+  }
+
+  /* transcript */
+  .transcript{
+    background:var(--bg-surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:6px;
+    max-height:340px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .transcript::-webkit-scrollbar{ width:6px; }
+  .transcript::-webkit-scrollbar-thumb{ background:var(--bg-surface-2); border-radius:4px; }
+
+  .empty-state{
+    padding:34px 20px;
+    text-align:center;
+    color:var(--ink-faint);
+    font-size:14px;
+    line-height:1.7;
+  }
+
+  .msg{
+    padding:14px 16px;
+    border-radius:12px;
+    margin:4px;
+    line-height:1.6;
+    font-size:15.5px;
+    animation:rise 0.3s ease;
+  }
+  @keyframes rise{
+    from{ opacity:0; transform:translateY(6px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .msg-user{
+    background:var(--bg-surface-2);
+    align-self:flex-end;
+    max-width:82%;
+    margin-left:auto;
+  }
+  .msg-user .who{ color:var(--accent-violet); }
+  .msg-ai{
+    max-width:88%;
+  }
+  .msg-ai .who{ color:var(--accent-teal); }
+  .who{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:10px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    margin-bottom:5px;
+    opacity:0.85;
+  }
+
+  /* command chips */
+  .chips-label{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    margin:26px 0 12px 2px;
+  }
+  .chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .chip{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    font-family:var(--font-body);
+    font-size:13.5px;
+    padding:9px 14px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  }
+  .chip:hover{
+    border-color:var(--accent-marigold);
+    color:var(--ink);
+    background:rgba(242,169,59,0.06);
+  }
+
+  /* controls row */
+  .controls{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    margin-top:30px;
+  }
+  .ctrl-btn{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--bg-surface);
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    font-family:var(--font-body);
+    font-size:13.5px;
+    padding:10px 16px;
+    border-radius:10px;
+    cursor:pointer;
+    transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .ctrl-btn:hover{ border-color:var(--ink-faint); color:var(--ink); }
+  .ctrl-btn.on{ border-color:var(--accent-teal); color:var(--accent-teal); }
+  .ctrl-btn svg{ width:15px; height:15px; }
+
+  .unsupported{
+    margin-top:20px;
+    padding:16px 18px;
+    border:1px solid rgba(242,115,92,0.35);
+    background:rgba(242,115,92,0.07);
+    border-radius:12px;
+    color:var(--accent-rose);
+    font-size:13.5px;
+    line-height:1.6;
+    text-align:center;
+    display:none;
+  }
+
+  footer{
+    margin-top:36px;
+    text-align:center;
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    letter-spacing:0.05em;
+    color:var(--ink-faint);
+  }
+
+  @media (max-width:480px){
+    .orb-wrap{ width:180px; height:180px; }
+    .ring-1{width:180px;height:180px;}
+    .ring-2{width:148px;height:148px;}
+    .ring-3{width:116px;height:116px;}
+    .orb-core{ width:88px; height:88px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+
+<div class="container">
+
+  <header>
+    <div class="brand">
+      <span class="brand-mark">VOICE·OS</span>
+      <span class="brand-name">वाणी</span>
+    </div>
+    <div class="lang-chip"><span class="dot"></span>हिंदी · hi-IN</div>
+  </header>
+
+  <div class="stage idle" id="stage">
+    <div class="orb-wrap">
+      <div class="orb-ring ring-1"></div>
+      <div class="orb-ring ring-2"></div>
+      <div class="orb-ring ring-3"></div>
+      <div class="orb-core" id="orbBtn">
+        <svg id="micIcon" viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+        <div class="wave-bars" id="waveBars">
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+    <div class="status-text" id="statusText">बोलने के लिए ऑर्ब दबाएँ</div>
+    <div class="status-sub" id="statusSub">IDLE</div>
+  </div>
+
+  <div class="unsupported" id="unsupported">
+    यह ब्राउज़र आवाज़ पहचान (Speech Recognition) को सपोर्ट नहीं करता। कृपया Google Chrome या Microsoft Edge में खोलें।
+  </div>
+
+  <div class="transcript" id="transcript">
+    <div class="empty-state" id="emptyState">
+      अभी कोई बातचीत नहीं हुई है।<br>ऑर्ब दबाएँ और कुछ पूछें — जैसे "आज का दिन कौन सा है?"
+    </div>
+  </div>
+
+  <div class="chips-label">सुझाए गए कमांड</div>
+  <div class="chips">
+    <button class="chip" data-q="अभी समय क्या हुआ है?">⏱ अभी समय क्या हुआ है?</button>
+    <button class="chip" data-q="आज की तारीख बताओ">📅 आज की तारीख बताओ</button>
+    <button class="chip" data-q="मुझे सूर्य के बारे में बताओ">☀️ सूर्य के बारे में बताओ</button>
+    <button class="chip" data-q="भारत का इतिहास संक्षेप में बताओ">🏛 भारत का इतिहास बताओ</button>
+    <button class="chip" data-q="एक प्रेरणादायक विचार बताओ">✨ प्रेरणादायक विचार</button>
+    <button class="chip" data-q="मुझे एक चुटकुला सुनाओ">😄 एक चुटकुला सुनाओ</button>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn on" id="voiceToggle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+      आवाज़ जवाब: ऑन
+    </button>
+    <button class="ctrl-btn" id="clearBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+      बातचीत साफ़ करें
+    </button>
+  </div>
+
+  <footer>निर्मित Claude द्वारा · Web Speech API</footer>
+
+</div>
+
+<script>
+(function(){
+  const stage = document.getElementById('stage');
+  const orbBtn = document.getElementById('orbBtn');
+  const statusText = document.getElementById('statusText');
+  const statusSub = document.getElementById('statusSub');
+  const transcript = document.getElementById('transcript');
+  const emptyState = document.getElementById('emptyState');
+  const unsupportedBox = document.getElementById('unsupported');
+  const waveBars = document.getElementById('waveBars');
+  const bars = waveBars.querySelectorAll('span');
+  const voiceToggle = document.getElementById('voiceToggle');
+  const clearBtn = document.getElementById('clearBtn');
+  const chips = document.querySelectorAll('.chip');
+
+  let voiceReplyOn = true;
+  let isBusy = false; // true while thinking or speaking, to ignore mic taps
+
+  // ---------- Speech Recognition setup ----------
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let recognizing = false;
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'hi-IN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      recognizing = true;
+      setState('listening', 'सुन रहा हूँ...', 'LISTENING');
+      startWaveAnalyser();
+    };
+
+    recognition.onresult = (event) => {
+      let text = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        text += event.results[i][0].transcript;
+      }
+      if (text.trim()) {
+        statusText.textContent = '"' + text.trim() + '"';
+      }
+      if (event.results[event.results.length - 1].isFinal) {
+        const finalText = text.trim();
+        if (finalText) handleUserQuery(finalText);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      recognizing = false;
+      stopWaveAnalyser();
+      if (event.error === 'no-speech') {
+        setState('idle', 'कुछ सुनाई नहीं दिया। फिर कोशिश करें', 'IDLE');
+      } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setState('idle', 'माइक्रोफ़ोन की अनुमति चाहिए', 'PERMISSION DENIED');
+      } else {
+        setState('idle', 'बोलने के लिए ऑर्ब दबाएँ', 'IDLE');
+      }
+    };
+
+    recognition.onend = () => {
+      recognizing = false;
+      stopWaveAnalyser();
+      if (!isBusy) setState('idle', 'बोलने के लिए ऑर्ब दबाएँ', 'IDLE');
+    };
+  } else {
+    unsupportedBox.style.display = 'block';
+    orbBtn.style.opacity = '0.4';
+    orbBtn.style.cursor = 'not-allowed';
+  }
+
+  // ---------- Mic tap ----------
+  orbBtn.addEventListener('click', () => {
+    if (!recognition || isBusy) return;
+    if (recognizing) {
+      recognition.stop();
+    } else {
+      window.speechSynthesis.cancel();
+      try { recognition.start(); } catch (e) { /* already started */ }
+    }
+  });
+
+  // ---------- Chips ----------
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (isBusy) return;
+      handleUserQuery(chip.dataset.q);
+    });
+  });
+
+  // ---------- Voice toggle ----------
+  voiceToggle.addEventListener('click', () => {
+    voiceReplyOn = !voiceReplyOn;
+    voiceToggle.classList.toggle('on', voiceReplyOn);
+    voiceToggle.lastChild.textContent = voiceReplyOn ? ' आवाज़ जवाब: ऑन' : ' आवाज़ जवाब: ऑफ़';
+    if (!voiceReplyOn) window.speechSynthesis.cancel();
+  });
+
+  // ---------- Clear ----------
+  clearBtn.addEventListener('click', () => {
+    transcript.querySelectorAll('.msg').forEach(m => m.remove());
+    emptyState.style.display = 'block';
+  });
+
+  // ---------- State helper ----------
+  function setState(mode, text, sub) {
+    stage.classList.remove('idle', 'listening', 'thinking', 'speaking');
+    stage.classList.add(mode);
+    statusText.textContent = text;
+    statusSub.textContent = sub;
+    waveBars.classList.toggle('active', mode === 'listening');
+  }
+
+  // ---------- Waveform (audio-reactive) ----------
+  let audioCtx, analyser, micStream, rafId;
+  function startWaveAnalyser() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      micStream = stream;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      function draw() {
+        analyser.getByteFrequencyData(data);
+        bars.forEach((bar, i) => {
+          const v = data[i * 3] || 0;
+          bar.style.height = Math.max(6, (v / 255) * 30) + 'px';
+        });
+        rafId = requestAnimationFrame(draw);
+      }
+      draw();
+    }).catch(() => {});
+  }
+  function stopWaveAnalyser() {
+    if (rafId) cancelAnimationFrame(rafId);
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (audioCtx) audioCtx.close();
+    bars.forEach(b => b.style.height = '6px');
+  }
+
+  // ---------- Transcript rendering ----------
+  function addMessage(role, text) {
+    emptyState.style.display = 'none';
+    const div = document.createElement('div');
+    div.className = 'msg ' + (role === 'user' ? 'msg-user' : 'msg-ai');
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = role === 'user' ? 'आप' : 'सहायक';
+    const body = document.createElement('div');
+    body.textContent = text;
+    div.appendChild(who);
+    div.appendChild(body);
+    transcript.appendChild(div);
+    transcript.scrollTop = transcript.scrollHeight;
+    return body;
+  }
+
+  // ---------- Local quick commands ----------
+  function tryLocalCommand(q) {
+    const query = q.toLowerCase();
+    const now = new Date();
+
+    if (query.includes('समय') || query.includes('time')) {
+      const t = now.toLocaleTimeString('hi-IN', { hour: '2-digit', minute: '2-digit' });
+      return `अभी समय है ${t}`;
+    }
+    if (query.includes('तारीख') || query.includes('दिन कौन सा') || query.includes('date')) {
+      const d = now.toLocaleDateString('hi-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      return `आज ${d} है`;
+    }
+    if (query.includes('नाम क्या') || query.includes('तुम कौन')) {
+      return 'मेरा नाम वाणी है। मैं आपका हिंदी आवाज़ सहायक हूँ, और मैं दुनिया भर के विषयों पर आपकी मदद कर सकता हूँ।';
+    }
+    if (query.includes('नमस्ते') || query.includes('हेलो') || query.includes('hello')) {
+      return 'नमस्ते! बताइए, मैं आपकी किस तरह मदद कर सकता हूँ?';
+    }
+    return null;
+  }
+
+  // ---------- Main query handler ----------
+  async function handleUserQuery(text) {
+    if (recognizing && recognition) recognition.stop();
+    isBusy = true;
+    addMessage('user', text);
+
+    const local = tryLocalCommand(text);
+    if (local) {
+      respondWith(local);
+      return;
+    }
+
+    setState('thinking', 'सोच रहा हूँ...', 'THINKING');
+    const bodyEl = addMessage('ai', '');
+    bodyEl.textContent = '...';
+
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          system: "आप वाणी नाम की एक ज्ञानी आवाज़ सहायक हैं। आपके पास दुनिया भर के विषयों — इतिहास, विज्ञान, भूगोल, संस्कृति, तकनीक, समसामयिक विषय आदि — की व्यापक जानकारी है। हमेशा शुद्ध, सरल और स्वाभाविक हिंदी में उत्तर दें (देवनागरी लिपि में, अंग्रेज़ी में नहीं)। उत्तर संक्षिप्त रखें — 2 से 4 वाक्य — क्योंकि यह ज़ोर से बोला जाएगा। कोई मार्कडाउन, बुलेट या विशेष चिन्ह न लगाएँ, सिर्फ़ सामान्य बोलचाल के वाक्य लिखें।",
+          messages: [{ role: "user", content: text }]
+        })
+      });
+
+      if (!response.ok) throw new Error('API error ' + response.status);
+      const data = await response.json();
+      const answer = (data.content || [])
+        .filter(b => b.type === 'text')
+        .map(b => b.text)
+        .join(' ')
+        .trim() || 'माफ़ कीजिए, मुझे इसका उत्तर नहीं मिल पाया।';
+
+      bodyEl.textContent = answer;
+      respondWith(answer, true);
+    } catch (err) {
+      const errMsg = 'माफ़ कीजिए, अभी जवाब लाने में समस्या हुई। कृपया दोबारा कोशिश करें।';
+      bodyEl.textContent = errMsg;
+      respondWith(errMsg, true);
+    }
+  }
+
+  function respondWith(text, alreadyRendered) {
+    if (!alreadyRendered) addMessage('ai', text);
+
+    if (voiceReplyOn && 'speechSynthesis' in window) {
+      setState('speaking', 'बता रहा हूँ...', 'SPEAKING');
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'hi-IN';
+      const voices = window.speechSynthesis.getVoices();
+      const hiVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('hi'));
+      if (hiVoice) utter.voice = hiVoice;
+      utter.rate = 0.98;
+      utter.onend = () => {
+        isBusy = false;
+        setState('idle', 'बोलने के लिए ऑर्ब दबाएँ', 'IDLE');
+      };
+      utter.onerror = () => {
+        isBusy = false;
+        setState('idle', 'बोलने के लिए ऑर्ब दबाएँ', 'IDLE');
+      };
+      window.speechSynthesis.speak(utter);
+    } else {
+      isBusy = false;
+      setState('idle', 'बोलने के लिए ऑर्ब दबाएँ', 'IDLE');
+    }
+  }
+
+  // Preload voice list (some browsers load async)
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }
+})();
+</script>
+
+</body>
+</html>

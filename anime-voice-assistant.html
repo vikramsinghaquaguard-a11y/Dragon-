@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>蝶 — Voice Companion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@500;700&family=Quicksand:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#130E1C;
+    --bg-panel:#1D1730;
+    --bg-panel-2:#251D3D;
+    --ink:#F3ECFA;
+    --ink-dim:#B3A4CC;
+    --ink-faint:#6B5E88;
+    --lavender:#B58AE0;
+    --lavender-deep:#8A63C4;
+    --wisteria-pink:#E8A0C4;
+    --wing-mint:#7FDBD4;
+    --line:rgba(243,236,250,0.09);
+    --font-display:'Cormorant SC', serif;
+    --font-body:'Quicksand', sans-serif;
+    --font-mono:'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    background:var(--bg-void);
+    color:var(--ink);
+    font-family:var(--font-body);
+    min-height:100vh;
+  }
+  body{
+    display:flex; flex-direction:column; align-items:center;
+    position:relative; overflow-x:hidden;
+  }
+  .bg-glow{
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(ellipse 55% 40% at 50% 8%, rgba(181,138,224,0.18), transparent 60%),
+      radial-gradient(ellipse 45% 35% at 90% 85%, rgba(232,160,196,0.10), transparent 60%);
+  }
+  /* drifting petal/butterfly particles */
+  .particle{
+    position:fixed; top:-30px; font-size:14px; opacity:0.5;
+    animation:drift linear infinite; pointer-events:none; z-index:0;
+    color:var(--lavender);
+  }
+  @keyframes drift{
+    0%{ transform:translateY(-30px) translateX(0) rotate(0deg); opacity:0; }
+    10%{ opacity:0.55; }
+    90%{ opacity:0.4; }
+    100%{ transform:translateY(110vh) translateX(40px) rotate(200deg); opacity:0; }
+  }
+
+  .phone{
+    width:100%; max-width:420px; min-height:100vh;
+    position:relative; z-index:1;
+    padding:0 0 40px;
+    border-left:1px solid var(--line); border-right:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(37,29,61,0.4), transparent 300px);
+  }
+
+  /* status bar */
+  .statusbar{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 22px 6px;
+    font-family:var(--font-mono); font-size:11px; color:var(--ink-faint);
+    letter-spacing:0.04em;
+  }
+
+  header{
+    display:flex; flex-direction:column; align-items:center;
+    padding:6px 20px 0;
+    text-align:center;
+  }
+  .name-badge{
+    font-family:var(--font-display); font-weight:700; font-size:30px;
+    letter-spacing:0.06em; color:var(--lavender);
+    display:flex; align-items:center; gap:8px;
+  }
+  .name-badge .kanji{ color:var(--wisteria-pink); font-size:24px; }
+  .tagline{
+    font-size:12px; color:var(--ink-faint); margin-top:2px;
+    letter-spacing:0.03em;
+  }
+
+  /* ===== Avatar stage ===== */
+  .avatar-stage{
+    display:flex; justify-content:center; align-items:flex-end;
+    padding:14px 0 6px; position:relative;
+  }
+  .avatar-glow{
+    position:absolute; width:260px; height:260px; border-radius:50%;
+    background:radial-gradient(circle, rgba(181,138,224,0.25), transparent 70%);
+    top:30px; filter:blur(4px); transition:background 0.5s ease, opacity 0.5s ease;
+    animation:glowbreathe 4s ease-in-out infinite;
+  }
+  @keyframes glowbreathe{ 0%,100%{ opacity:0.6; transform:scale(1);} 50%{ opacity:0.9; transform:scale(1.08);} }
+
+  #avatarSvg{ width:260px; height:auto; position:relative; z-index:1; }
+
+  /* transform-box needed so rotations pivot correctly on each path */
+  #avatarSvg [class^="sway"], #avatarSvg [class*=" sway"] { transform-box: fill-box; }
+
+  .sway-back-l{ transform-origin: top center; animation: swayL 4.2s ease-in-out infinite; }
+  .sway-back-r{ transform-origin: top center; animation: swayR 4.6s ease-in-out infinite; }
+  .sway-back-l2{ transform-origin: top center; animation: swayL 5.4s ease-in-out infinite 0.3s; }
+  .sway-back-r2{ transform-origin: top center; animation: swayR 5.0s ease-in-out infinite 0.5s; }
+  .sway-front{ transform-origin: top center; animation: swayR 3.8s ease-in-out infinite; }
+  .sway-sleeve-l{ transform-origin: top right; animation: swaySleeveL 3.4s ease-in-out infinite; }
+  .sway-sleeve-r{ transform-origin: top left; animation: swaySleeveR 3.7s ease-in-out infinite 0.2s; }
+  .butterfly-wing-l{ transform-origin: right center; animation: flutter 1.6s ease-in-out infinite; }
+  .butterfly-wing-r{ transform-origin: left center; animation: flutter 1.6s ease-in-out infinite 0.15s; }
+
+  @keyframes swayL{ 0%,100%{ transform:rotate(-3deg);} 50%{ transform:rotate(3.5deg);} }
+  @keyframes swayR{ 0%,100%{ transform:rotate(3deg);} 50%{ transform:rotate(-3.5deg);} }
+  @keyframes swaySleeveL{ 0%,100%{ transform:rotate(-4deg);} 50%{ transform:rotate(2deg);} }
+  @keyframes swaySleeveR{ 0%,100%{ transform:rotate(4deg);} 50%{ transform:rotate(-2deg);} }
+  @keyframes flutter{ 0%,100%{ transform:scaleX(1) rotate(0deg);} 50%{ transform:scaleX(0.75) rotate(6deg);} }
+
+  .blink{ animation: blink 4.5s ease-in-out infinite; transform-box: fill-box; transform-origin:center; }
+  @keyframes blink{ 0%,92%,100%{ transform:scaleY(1);} 94%{ transform:scaleY(0.1);} 96%{ transform:scaleY(1);} }
+
+  /* state modifiers */
+  .avatar-stage.listening .avatar-glow{ background:radial-gradient(circle, rgba(181,138,224,0.45), transparent 70%); }
+  .avatar-stage.listening #avatarSvg .sway-back-l,
+  .avatar-stage.listening #avatarSvg .sway-back-r,
+  .avatar-stage.listening #avatarSvg .sway-back-l2,
+  .avatar-stage.listening #avatarSvg .sway-back-r2{ animation-duration:1.8s; }
+
+  .avatar-stage.thinking .avatar-glow{ background:radial-gradient(circle, rgba(232,160,196,0.4), transparent 70%); }
+
+  .avatar-stage.speaking .mouth{ animation: talk 0.35s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
+  @keyframes talk{ 0%,100%{ transform:scaleY(1);} 50%{ transform:scaleY(1.8);} }
+  .avatar-stage.speaking .avatar-glow{ background:radial-gradient(circle, rgba(127,219,212,0.35), transparent 70%); }
+
+  .avatar-stage.executing .avatar-glow{ background:radial-gradient(circle, rgba(127,219,212,0.5), transparent 70%); }
+
+  /* mic button */
+  .mic-row{ display:flex; justify-content:center; margin-top:4px; }
+  .mic-btn{
+    width:64px; height:64px; border-radius:50%;
+    background:var(--bg-panel); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:border-color 0.3s ease, box-shadow 0.3s ease, transform 0.15s ease;
+  }
+  .mic-btn:active{ transform:scale(0.95); }
+  .mic-btn svg{ width:24px; height:24px; stroke:var(--ink-dim); transition:stroke 0.3s ease; }
+  .listening .mic-btn{ border-color:var(--lavender); box-shadow:0 0 26px rgba(181,138,224,0.35); }
+  .listening .mic-btn svg{ stroke:var(--lavender); }
+  .speaking .mic-btn{ border-color:var(--wing-mint); box-shadow:0 0 26px rgba(127,219,212,0.3); }
+  .speaking .mic-btn svg{ stroke:var(--wing-mint); }
+
+  .status-line{
+    text-align:center; margin-top:10px; font-size:14.5px; color:var(--ink-dim);
+    min-height:20px; padding:0 30px;
+  }
+
+  /* action toast */
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--bg-panel-2); border:1px solid var(--line);
+    padding:12px 18px; border-radius:12px; font-size:13.5px;
+    display:flex; align-items:center; gap:8px;
+    opacity:0; transition:opacity 0.3s ease, transform 0.3s ease;
+    z-index:10; max-width:88%; box-shadow:0 10px 30px rgba(0,0,0,0.4);
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast .dot{ width:7px; height:7px; border-radius:50%; background:var(--wing-mint); flex-shrink:0; }
+
+  /* transcript */
+  .transcript{
+    margin:18px 18px 0; background:var(--bg-panel); border:1px solid var(--line);
+    border-radius:14px; padding:6px; max-height:150px; overflow-y:auto;
+  }
+  .transcript::-webkit-scrollbar{ width:5px; }
+  .transcript::-webkit-scrollbar-thumb{ background:var(--bg-panel-2); border-radius:4px; }
+  .empty-transcript{ padding:18px; text-align:center; color:var(--ink-faint); font-size:12.5px; }
+  .msg{ padding:9px 12px; margin:3px; border-radius:10px; font-size:13.5px; line-height:1.5; }
+  .msg-user{ background:var(--bg-panel-2); margin-left:auto; max-width:80%; }
+  .msg-ai{ max-width:88%; color:var(--ink-dim); }
+  .who{ display:block; font-family:var(--font-mono); font-size:9px; letter-spacing:0.08em; text-transform:uppercase; opacity:0.7; margin-bottom:3px; }
+  .msg-user .who{ color:var(--lavender); }
+  .msg-ai .who{ color:var(--wing-mint); }
+
+  /* app grid (home screen) */
+  .section-label{
+    font-family:var(--font-mono); font-size:10.5px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--ink-faint); margin:24px 20px 10px;
+  }
+  .app-grid{
+    display:grid; grid-template-columns:repeat(4, 1fr); gap:16px;
+    padding:0 20px;
+  }
+  .app-icon{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    cursor:pointer; background:none; border:none; color:var(--ink-dim);
+  }
+  .app-icon .glyph{
+    width:52px; height:52px; border-radius:16px;
+    background:var(--bg-panel); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; transition:border-color 0.2s ease, transform 0.15s ease, background 0.2s ease;
+  }
+  .app-icon:active .glyph{ transform:scale(0.92); }
+  .app-icon:hover .glyph{ border-color:var(--lavender); }
+  .app-icon span{ font-size:10.5px; text-align:center; }
+
+  /* command chips */
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; padding:0 20px; }
+  .chip{
+    background:transparent; border:1px solid var(--line); color:var(--ink-dim);
+    font-family:var(--font-body); font-size:12.5px; padding:8px 13px; border-radius:999px;
+    cursor:pointer; transition:border-color 0.2s ease, color 0.2s ease;
+  }
+  .chip:hover{ border-color:var(--wisteria-pink); color:var(--ink); }
+
+  /* contacts panel */
+  .contacts-panel{ padding:0 20px; margin-top:6px; }
+  .contact-row{
+    display:flex; gap:8px; margin-bottom:8px;
+  }
+  .contact-row input{
+    background:var(--bg-panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:8px; padding:9px 11px; font-family:var(--font-body); font-size:13px;
+    flex:1; min-width:0;
+  }
+  .contact-row input::placeholder{ color:var(--ink-faint); }
+  .contact-row button{
+    background:var(--lavender-deep); border:none; color:var(--ink);
+    border-radius:8px; padding:0 14px; font-family:var(--font-body); font-size:13px;
+    cursor:pointer; font-weight:600;
+  }
+  .contact-list{ display:flex; flex-wrap:wrap; gap:6px; margin-top:2px; }
+  .contact-tag{
+    font-size:11.5px; color:var(--ink-dim); border:1px solid var(--line);
+    padding:5px 10px; border-radius:999px; font-family:var(--font-mono);
+  }
+
+  .note-box{
+    margin:26px 20px 0; padding:14px 16px; border:1px solid var(--line);
+    border-radius:12px; background:var(--bg-panel); font-size:12px;
+    color:var(--ink-faint); line-height:1.6;
+  }
+  .note-box b{ color:var(--ink-dim); }
+
+  .unsupported{
+    margin:16px 20px 0; padding:14px 16px; border-radius:12px; font-size:13px;
+    border:1px solid rgba(232,160,196,0.4); background:rgba(232,160,196,0.08);
+    color:var(--wisteria-pink); text-align:center; display:none; line-height:1.6;
+  }
+
+  footer{
+    text-align:center; margin-top:26px; font-family:var(--font-mono);
+    font-size:10px; letter-spacing:0.05em; color:var(--ink-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<div class="phone">
+
+  <div class="statusbar">
+    <span id="clock">--:--</span>
+    <span>◈ VOICE COMPANION</span>
+  </div>
+
+  <header>
+    <div class="name-badge"><span class="kanji">蝶</span>Kocho</div>
+    <div class="tagline">your voice-controlled companion</div>
+  </header>
+
+  <div class="avatar-stage idle" id="avatarStage">
+    <div class="avatar-glow"></div>
+
+    <svg id="avatarSvg" viewBox="0 0 300 380" xmlns="http://www.w3.org/2000/svg">
+      <!-- back hair strands -->
+      <path class="sway-back-l2" d="M92 120 C60 190, 55 280, 78 355 C88 360, 98 358, 104 350 C88 280, 92 190, 112 128 Z" fill="#5B3E8C"/>
+      <path class="sway-back-r2" d="M208 120 C240 190, 245 280, 222 355 C212 360, 202 358, 196 350 C212 280, 208 190, 188 128 Z" fill="#5B3E8C"/>
+      <path class="sway-back-l" d="M100 116 C74 180, 70 260, 88 330 C98 334, 108 332, 113 325 C100 260, 104 180, 122 122 Z" fill="#7A57B8"/>
+      <path class="sway-back-r" d="M200 116 C226 180, 230 260, 212 330 C202 334, 192 332, 187 325 C200 260, 196 180, 178 122 Z" fill="#7A57B8"/>
+
+      <!-- sleeves / kimono -->
+      <path class="sway-sleeve-l" d="M60 270 C40 300, 34 340, 46 372 L110 372 C104 330, 100 295, 96 268 Z" fill="#3D2E5C"/>
+      <path class="sway-sleeve-r" d="M240 270 C260 300, 266 340, 254 372 L190 372 C196 330, 200 295, 204 268 Z" fill="#3D2E5C"/>
+      <path d="M96 250 C80 300, 84 345, 96 372 L204 372 C216 345, 220 300, 204 250 C185 275, 115 275, 96 250 Z" fill="#4A3872"/>
+      <path d="M118 240 L150 262 L182 240 L182 270 L150 292 L118 270 Z" fill="#B58AE0" opacity="0.85"/>
+
+      <!-- neck -->
+      <rect x="136" y="200" width="28" height="40" rx="10" fill="#F1D9C8"/>
+
+      <!-- face -->
+      <ellipse cx="150" cy="165" rx="58" ry="66" fill="#F6DFCE"/>
+
+      <!-- front hair bangs -->
+      <path class="sway-front" d="M92 130 C90 90, 120 62, 150 62 C180 62, 210 90, 208 130 C196 110, 176 100, 150 100 C124 100, 104 110, 92 130 Z" fill="#6C4CA6"/>
+      <path d="M96 128 C102 104, 118 90, 132 86 C122 104, 118 122, 122 142 Z" fill="#5B3E8C"/>
+      <path d="M204 128 C198 104, 182 90, 168 86 C178 104, 182 122, 178 142 Z" fill="#5B3E8C"/>
+      <path d="M140 84 C132 66, 138 50, 150 44 C162 50, 168 66, 160 84 C154 78, 146 78, 140 84 Z" fill="#6C4CA6"/>
+
+      <!-- butterfly hair ornament -->
+      <g transform="translate(198,108)">
+        <path class="butterfly-wing-l" d="M0 0 C-16 -14, -30 -6, -28 8 C-26 20, -10 18, 0 4 Z" fill="#E8A0C4"/>
+        <path class="butterfly-wing-r" d="M0 0 C16 -14, 30 -6, 28 8 C26 20, 10 18, 0 4 Z" fill="#B58AE0"/>
+        <circle cx="0" cy="2" r="3" fill="#F3ECFA"/>
+      </g>
+
+      <!-- eyes -->
+      <g class="blink">
+        <path d="M114 160 Q126 150, 140 160" stroke="#3D2E5C" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <ellipse cx="127" cy="168" rx="9" ry="11" fill="#3D2E5C"/>
+        <circle cx="130" cy="163" r="2.6" fill="#F3ECFA"/>
+      </g>
+      <g class="blink">
+        <path d="M160 160 Q174 150, 186 160" stroke="#3D2E5C" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <ellipse cx="173" cy="168" rx="9" ry="11" fill="#3D2E5C"/>
+        <circle cx="176" cy="163" r="2.6" fill="#F3ECFA"/>
+      </g>
+
+      <!-- blush -->
+      <ellipse cx="112" cy="188" rx="10" ry="6" fill="#E8A0C4" opacity="0.5"/>
+      <ellipse cx="188" cy="188" rx="10" ry="6" fill="#E8A0C4" opacity="0.5"/>
+
+      <!-- mouth -->
+      <path class="mouth" d="M138 198 Q150 206, 162 198" stroke="#B5726B" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <div class="mic-row">
+    <button class="mic-btn" id="micBtn" aria-label="Talk">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+      </svg>
+    </button>
+  </div>
+  <div class="status-line" id="statusLine">Tap to talk — try "call mom" or "open whatsapp"</div>
+
+  <div class="unsupported" id="unsupported">
+    This browser doesn't support voice recognition. Try Chrome or Edge on Android — or just tap the app icons and chips below.
+  </div>
+
+  <div class="transcript" id="transcript">
+    <div class="empty-transcript" id="emptyTranscript">No commands yet. Say something, or tap a chip below.</div>
+  </div>
+
+  <div class="section-label">Try saying</div>
+  <div class="chips">
+    <button class="chip" data-cmd="call mom">📞 Call mom</button>
+    <button class="chip" data-cmd="open whatsapp">💬 Open WhatsApp</button>
+    <button class="chip" data-cmd="open youtube">▶️ Open YouTube</button>
+    <button class="chip" data-cmd="open camera">📷 Open camera</button>
+    <button class="chip" data-cmd="open maps">🗺️ Open maps</button>
+    <button class="chip" data-cmd="what time is it">⏱ What time is it?</button>
+  </div>
+
+  <div class="section-label">Home screen</div>
+  <div class="app-grid">
+    <button class="app-icon" data-app="phone"><div class="glyph">📞</div><span>Phone</span></button>
+    <button class="app-icon" data-app="whatsapp"><div class="glyph">💬</div><span>WhatsApp</span></button>
+    <button class="app-icon" data-app="camera"><div class="glyph">📷</div><span>Camera</span></button>
+    <button class="app-icon" data-app="gallery"><div class="glyph">🖼️</div><span>Gallery</span></button>
+    <button class="app-icon" data-app="maps"><div class="glyph">🗺️</div><span>Maps</span></button>
+    <button class="app-icon" data-app="youtube"><div class="glyph">▶️</div><span>YouTube</span></button>
+    <button class="app-icon" data-app="instagram"><div class="glyph">📸</div><span>Instagram</span></button>
+    <button class="app-icon" data-app="mail"><div class="glyph">✉️</div><span>Mail</span></button>
+    <button class="app-icon" data-app="sms"><div class="glyph">💌</div><span>Messages</span></button>
+    <button class="app-icon" data-app="browser"><div class="glyph">🌐</div><span>Browser</span></button>
+    <button class="app-icon" data-app="clock"><div class="glyph">⏰</div><span>Clock</span></button>
+    <button class="app-icon" data-app="settings"><div class="glyph">⚙️</div><span>Settings</span></button>
+  </div>
+
+  <div class="section-label">Contacts (for voice calling)</div>
+  <div class="contacts-panel">
+    <div class="contact-row">
+      <input type="text" id="contactName" placeholder="Name (e.g. mom)">
+      <input type="tel" id="contactNumber" placeholder="Phone number">
+      <button id="addContact">Add</button>
+    </div>
+    <div class="contact-list" id="contactList"></div>
+  </div>
+
+  <div class="note-box">
+    <b>What this can actually do:</b> place outgoing calls, open installed apps via their share/deep links, and search the web — all with your confirmation tap on mobile. It can't answer incoming calls, silence your ringer, or read notifications; phone OSes reserve those to apps with special system permissions, not websites.
+  </div>
+
+  <footer>ORIGINAL CHARACTER DESIGN · MADE WITH CLAUDE</footer>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastText"></span></div>
+
+<script>
+(function(){
+  const avatarStage = document.getElementById('avatarStage');
+  const micBtn = document.getElementById('micBtn');
+  const statusLine = document.getElementById('statusLine');
+  const transcript = document.getElementById('transcript');
+  const emptyTranscript = document.getElementById('emptyTranscript');
+  const unsupportedBox = document.getElementById('unsupported');
+  const toast = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+  const clockEl = document.getElementById('clock');
+  const chips = document.querySelectorAll('.chip');
+  const appIcons = document.querySelectorAll('.app-icon');
+  const contactList = document.getElementById('contactList');
+  const addContactBtn = document.getElementById('addContact');
+
+  let isBusy = false;
+  let contacts = { mom: '', dad: '' };
+
+  // ---------- clock ----------
+  function tickClock(){
+    const d = new Date();
+    clockEl.textContent = d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+  }
+  tickClock(); setInterval(tickClock, 15000);
+
+  // ---------- drifting particles ----------
+  const petals = ['✦','❀','⋆'];
+  for (let i=0;i<10;i++){
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.textContent = petals[Math.floor(Math.random()*petals.length)];
+    p.style.left = Math.random()*100 + '%';
+    p.style.animationDuration = (10 + Math.random()*10) + 's';
+    p.style.animationDelay = (Math.random()*10) + 's';
+    p.style.fontSize = (10 + Math.random()*8) + 'px';
+    document.body.appendChild(p);
+  }
+
+  // ---------- contacts ----------
+  function renderContacts(){
+    contactList.innerHTML = '';
+    Object.keys(contacts).forEach(name => {
+      if (!contacts[name]) return;
+      const tag = document.createElement('span');
+      tag.className = 'contact-tag';
+      tag.textContent = name + ' · ' + contacts[name];
+      contactList.appendChild(tag);
+    });
+  }
+  renderContacts();
+
+  addContactBtn.addEventListener('click', () => {
+    const name = document.getElementById('contactName').value.trim().toLowerCase();
+    const num = document.getElementById('contactNumber').value.trim();
+    if (name && num){
+      contacts[name] = num;
+      renderContacts();
+      document.getElementById('contactName').value = '';
+      document.getElementById('contactNumber').value = '';
+      showToast('Saved contact: ' + name);
+    }
+  });
+
+  // ---------- state ----------
+  function setState(mode, text){
+    avatarStage.classList.remove('idle','listening','thinking','speaking','executing');
+    avatarStage.classList.add(mode);
+    if (text) statusLine.textContent = text;
+  }
+
+  function showToast(msg){
+    toastText.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=> toast.classList.remove('show'), 3200);
+  }
+
+  // ---------- transcript ----------
+  function addMessage(role, text){
+    emptyTranscript.style.display = 'none';
+    const div = document.createElement('div');
+    div.className = 'msg ' + (role==='user' ? 'msg-user' : 'msg-ai');
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = role==='user' ? 'you' : 'kocho';
+    const body = document.createElement('div');
+    body.textContent = text;
+    div.appendChild(who); div.appendChild(body);
+    transcript.appendChild(div);
+    transcript.scrollTop = transcript.scrollHeight;
+  }
+
+  // ---------- deep links for apps ----------
+  const appLinks = {
+    phone: () => 'tel:',
+    whatsapp: () => 'https://wa.me/',
+    camera: () => null, // no reliable cross-platform scheme
+    gallery: () => null,
+    maps: () => 'https://maps.google.com',
+    youtube: () => 'https://www.youtube.com',
+    instagram: () => 'https://www.instagram.com',
+    mail: () => 'mailto:',
+    sms: () => 'sms:',
+    browser: () => 'https://www.google.com',
+    clock: () => null,
+    settings: () => null
+  };
+  const appNames = {
+    phone:'Phone', whatsapp:'WhatsApp', camera:'Camera', gallery:'Gallery',
+    maps:'Maps', youtube:'YouTube', instagram:'Instagram', mail:'Mail',
+    sms:'Messages', browser:'Browser', clock:'Clock', settings:'Settings'
+  };
+
+  function openApp(app){
+    const linkFn = appLinks[app];
+    const url = linkFn ? linkFn() : null;
+    setState('executing', 'Opening ' + appNames[app] + '...');
+    if (url){
+      showToast('Opening ' + appNames[app]);
+      window.open(url, '_blank');
+    } else {
+      showToast(appNames[app] + ' can\'t be opened from a browser on this device');
+    }
+    setTimeout(() => { if (!isBusy) setState('idle', 'Tap to talk — try "call mom" or "open whatsapp"'); }, 1600);
+  }
+
+  appIcons.forEach(icon => {
+    icon.addEventListener('click', () => openApp(icon.dataset.app));
+  });
+
+  // ---------- command handling ----------
+  function handleCommand(text){
+    addMessage('user', text);
+    const q = text.toLowerCase();
+
+    // call <name/number>
+    const callMatch = q.match(/call\s+(.+)/);
+    if (callMatch){
+      const target = callMatch[1].trim();
+      let number = null;
+      if (/^[0-9+\s-]{6,}$/.test(target)) {
+        number = target.replace(/\s/g,'');
+      } else if (contacts[target]) {
+        number = contacts[target];
+      }
+      setState('executing', number ? ('Calling ' + target + '...') : ('I don\'t have a number for ' + target));
+      if (number){
+        addMessage('ai', 'Calling ' + target + ' now.');
+        showToast('Dialing ' + target);
+        window.location.href = 'tel:' + number;
+      } else {
+        addMessage('ai', 'I don\'t have a saved number for "' + target + '". Add it in Contacts below.');
+        showToast('No number saved for ' + target);
+      }
+      finishAction();
+      return;
+    }
+
+    // open <app>
+    const openMatch = q.match(/open\s+(.+)/);
+    if (openMatch){
+      const key = Object.keys(appNames).find(k => openMatch[1].includes(k));
+      if (key){
+        addMessage('ai', 'Opening ' + appNames[key] + '.');
+        openApp(key);
+        isBusy = false;
+        return;
+      } else {
+        addMessage('ai', 'I don\'t recognize that app on this home screen.');
+        finishAction();
+        return;
+      }
+    }
+
+    if (q.includes('time')){
+      const t = new Date().toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+      addMessage('ai', 'It\'s ' + t + '.');
+      finishAction();
+      return;
+    }
+
+    if (q.includes('your name') || q.includes('who are you')){
+      addMessage('ai', 'I\'m Kocho — your voice companion. I can call people, open your apps, and chat.');
+      finishAction();
+      return;
+    }
+
+    addMessage('ai', 'I heard "' + text + '" — try a command like "call mom" or "open youtube".');
+    finishAction();
+  }
+
+  function finishAction(){
+    setState('speaking', 'Speaking...');
+    setTimeout(() => {
+      isBusy = false;
+      setState('idle', 'Tap to talk — try "call mom" or "open whatsapp"');
+    }, 1300);
+  }
+
+  // ---------- speech recognition ----------
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null, recognizing = false;
+
+  if (SpeechRecognition){
+    recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => { recognizing = true; isBusy = true; setState('listening', 'Listening...'); };
+    recognition.onresult = (e) => {
+      let text = '';
+      for (let i=e.resultIndex; i<e.results.length; i++) text += e.results[i][0].transcript;
+      if (text.trim()) statusLine.textContent = '"' + text.trim() + '"';
+      if (e.results[e.results.length-1].isFinal){
+        const final = text.trim();
+        if (final){ setState('thinking', 'Thinking...'); setTimeout(()=>handleCommand(final), 350); }
+      }
+    };
+    recognition.onerror = () => { recognizing = false; isBusy = false; setState('idle', 'Tap to talk — try "call mom" or "open whatsapp"'); };
+    recognition.onend = () => { recognizing = false; if (!isBusy) setState('idle'); };
+  } else {
+    unsupportedBox.style.display = 'block';
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (!recognition || isBusy) return;
+    if (recognizing){ recognition.stop(); }
+    else { try { recognition.start(); } catch(e){} }
+  });
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (isBusy) return;
+      isBusy = true;
+      setState('thinking', 'Thinking...');
+      setTimeout(()=>handleCommand(chip.dataset.cmd), 300);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
